@@ -1,0 +1,10 @@
+import {beforeEach,afterEach,it,expect,vi} from 'vitest';import {POST} from '@/app/api/workbench/[id]/approve/route';import {HttpError} from '@/lib/http/errors';
+const mocks=vi.hoisted(()=>({requireOperator:vi.fn(),rpc:vi.fn()}));
+vi.mock('@/lib/auth/server',()=>({requireOperator:mocks.requireOperator}));vi.mock('@/lib/supabase/serviceRole',()=>({getServiceRoleClient:()=>({rpc:mocks.rpc})}));
+const id='11111111-1111-4111-8111-111111111111';
+function request(body:object){return new Request('https://falcon.test/api',{method:'POST',headers:{origin:'https://falcon.test','content-type':'application/json'},body:JSON.stringify(body)});}
+beforeEach(()=>{vi.stubEnv('APP_ORIGIN','https://falcon.test');mocks.requireOperator.mockReset().mockResolvedValue({user:{id:'server-authenticated-actor'}});mocks.rpc.mockReset().mockResolvedValue({data:null,error:null});});afterEach(()=>vi.unstubAllEnvs());
+it('rechecks approval authorization and derives actor from verified auth',async()=>{const result=await POST(request({reason:'Reviewed source documents'}),{params:{id}});expect(result.status).toBe(200);expect(mocks.requireOperator).toHaveBeenCalledWith(id,true);expect(mocks.rpc).toHaveBeenCalledWith('advance_pilot_application',{p_application:id,p_actor:'server-authenticated-actor',p_reason:'Reviewed source documents'});});
+it('rejects a browser-supplied operator identity',async()=>{const result=await POST(request({reason:'Reviewed source documents',actor:'other-operator'}),{params:{id}});expect(result.status).toBe(400);expect(mocks.rpc).not.toHaveBeenCalled();});
+it('cannot bypass route authorization by calling the API directly',async()=>{mocks.requireOperator.mockRejectedValue(new HttpError(403,'OPERATOR_REQUIRED','Operator required.'));expect((await POST(request({reason:'Reviewed source documents'}),{params:{id}})).status).toBe(403);expect(mocks.rpc).not.toHaveBeenCalled();});
+it('returns a conflict when SQL refuses the transition',async()=>{mocks.rpc.mockResolvedValue({data:null,error:{code:'P0001'}});expect((await POST(request({reason:'Reviewed source documents'}),{params:{id}})).status).toBe(409);});

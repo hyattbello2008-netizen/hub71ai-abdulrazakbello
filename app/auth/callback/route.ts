@@ -1,0 +1,2 @@
+import {NextResponse} from 'next/server';import {createUserSupabase} from '@/lib/supabase/server';import {requiredEnvironment} from '@/lib/http/errors';
+export async function GET(request:Request){const code=new URL(request.url).searchParams.get('code');const origin=requiredEnvironment('APP_ORIGIN');if(code){const result=await createUserSupabase().auth.exchangeCodeForSession(code);if(!result.error)return NextResponse.redirect(new URL('/dashboard',origin));}return NextResponse.redirect(new URL('/login?confirmation=failed',origin));}

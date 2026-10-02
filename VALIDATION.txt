@@ -1,0 +1,39 @@
+Falcon Phase 2 backend — validation on 2026-10-02
+
+PASS: TypeScript strict typecheck, including noUncheckedIndexedAccess and
+exactOptionalPropertyTypes.
+PASS: 61 Vitest tests across four suites:
+  - origin signatures, clock window, bounded bodies, strict callback payloads,
+    bigint-safe money, Make dual signatures and approval/payment key separation;
+  - schema-constrained extraction, server-generated IDs, threshold handling,
+    missing fields, unknown persona, refusals, truncation and provider failures;
+  - atomic command adapters, duplicate versus altered-event conflicts, concurrent
+    uniqueness-error classification, operation/application binding and error handling;
+  - service-key-only client configuration and disabled session behaviour.
+PASS: Next.js 14.2.35 optimized production build on Windows (standard output).
+  Both /api/webhooks routes build as dynamic Node.js endpoints with 0 B client JS.
+PASS: Production-server HTTP smoke checks: unsigned payment -> 401,
+  signed wrong schema -> 400, payment key against approval -> 401, GET -> 405.
+  The temporary local server was stopped after verification.
+PASS: Phase 1 migration and original SQL assertions in PGlite PostgreSQL 18.3,
+  followed by the additive approval migration and Phase 2 SQL assertions.
+  Approval does not write financial postings. Release request before approval fails
+  atomically; separately confirmed payment completes the case. Approval receipts are
+  immutable and isolated by case. Duplicate event/case approvals are rejected.
+
+Boundary of verification:
+OpenAI SDK requests and Supabase client interactions were mocked in TypeScript tests.
+SQL functions were executed in a temporary PostgreSQL WASM engine with minimal
+Supabase auth/role fixtures. No real keys, personal records, government approvals,
+custody, yield or actual money were used.
+
+Still unverified in this environment:
+- The deployed self-hosted Supabase/PostgREST JWT and schema-cache integration.
+- Independent database-session race/deadlock tests (PGlite is single-session).
+- Linux standalone/Docker packaging; Windows symlink packaging was avoided using
+  the documented platform-specific output setting.
+- Actual OpenAI inference/model availability, residency controls and account limits.
+- Actual Make forwarding, key rotation, proxy rate/time limits and worker recovery.
+
+The original 001_foundation.sql was not changed in Phase 2. The approved extension is
+sql/003_approval_authority.sql; its verification suite is sql/004_approval_verification.sql.

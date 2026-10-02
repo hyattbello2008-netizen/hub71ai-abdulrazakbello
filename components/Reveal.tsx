@@ -1,0 +1,2 @@
+'use client';import {motion,MotionConfig,useReducedMotion} from 'framer-motion';
+export default function Reveal({children,className='',delay=0}:{children:React.ReactNode;className?:string;delay?:number}){const reduced=useReducedMotion();return <MotionConfig reducedMotion="user"><motion.div className={className} initial={false} whileInView={reduced?{}:{opacity:[.4,1],y:[16,0]}} viewport={{once:true,amount:.08}} transition={{duration:reduced?0:.65,delay:reduced?0:delay,ease:[.22,1,.36,1]}}>{children}</motion.div></MotionConfig>;}

@@ -1,0 +1,19 @@
+import Link from 'next/link';import {notFound} from 'next/navigation';import {z} from 'zod';import {requireOperator} from '@/lib/auth/server';import {hasOperatorAccess} from '@/lib/auth/access';import {HttpError} from '@/lib/http/errors';import OperatorActions from '@/components/OperatorActions';import {money} from '@/lib/money';
+import JsonViewer from '@/components/workspace/JsonViewer';import AuditLog from '@/components/workspace/AuditLog';
+export const dynamic='force-dynamic';export const runtime='nodejs';
+export default async function Case({params}:{params:{id:string}}){if(!z.string().uuid().safeParse(params.id).success)notFound();const {db}=await requireOperator(params.id);
+  const [app,memberships,audit,balances,extraction]=await Promise.all([
+    db.from('applications').select('id,organization_id,protocol_id,status,validated_completeness,review_reason_code,simulated_approval_status').eq('id',params.id).single(),
+    db.rpc('current_operator_memberships'),db.rpc('application_audit_text',{p_application_id:params.id}),db.rpc('account_balances_text',{p_application_id:params.id}),
+    db.from('extraction_runs').select('extracted_data,validated_completeness,has_conflicts,created_at').eq('application_id',params.id).order('created_at',{ascending:false}).limit(1).maybeSingle(),
+  ]);if(app.error||memberships.error||audit.error||balances.error||extraction.error||!app.data)throw new HttpError(500,'DATABASE_ERROR','Case data could not be loaded.');
+  const citations=await db.from('evidence_citations').select('id,document_id,field_path,page_number,source_excerpt').eq('application_id',params.id).order('page_number').limit(100);
+  if(citations.error)throw new HttpError(500,'DATABASE_ERROR','Source citations could not be loaded.');
+  const receipts=await db.from('government_approval_receipts').select('id,application_id,event_id,body_sha256').eq('application_id',params.id).limit(50);
+  if(receipts.error)throw new HttpError(500,'DATABASE_ERROR','Approval receipts could not be loaded.');
+  return <div className="workspace"><Link className="mb-6 inline-block text-sm text-gold" href="/workbench">Return to Exception Queue</Link><div className="pagehead"><div><span className="eyebrow">Case review</span><h1 className="mb-3 text-3xl font-semibold">{app.data.status}</h1><code className="break-all text-xs text-muted-foreground">{app.data.protocol_id}</code></div><span className="badge">Simulated Escrow</span></div><section className="grid gap-6 lg:grid-cols-3"><article className="panel"><span className="eyebrow">Evidence coverage</span><strong className="metric">{app.data.validated_completeness??'—'}{app.data.validated_completeness!=null?'%':''}</strong></article><article className="panel"><span className="eyebrow">Escrow balance</span><strong className="metric">{money(balances.data?.find(b=>b.code==='APPLICANT_ESCROW')?.balance_minor??'0')}</strong></article><article className="panel"><span className="eyebrow">Simulated approval</span><strong className="metric">{app.data.simulated_approval_status}</strong></article></section>
+    <OperatorActions id={params.id} status={app.data.status} canApprove={hasOperatorAccess(memberships.data,app.data.organization_id,true)} simulationEnabled={process.env.SIMULATION_ACTIONS_ENABLED==='true'}/>
+    <section className="mb-8"><p className="mb-4 text-sm text-muted-foreground">Review reason: {app.data.review_reason_code??'None recorded'}</p><JsonViewer data={extraction.data?.extracted_data??null}/></section>
+    <section className="panel"><h2>Source citations</h2>{citations.data?.map(c=><blockquote key={c.id}><b>{c.field_path}</b><p>{c.source_excerpt}</p><small>Document {c.document_id} · page {c.page_number}</small></blockquote>)}{!citations.data?.length&&<p>No source citations recorded.</p>}</section>
+    <AuditLog events={audit.data??[]} receipts={receipts.data??[]}/></div>;
+}

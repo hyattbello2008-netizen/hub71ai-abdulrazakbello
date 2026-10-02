@@ -1,0 +1,81 @@
+FALCON PROTOCOL / FRONTEND OVERHAUL / 2 OCTOBER 2026
+
+Delivery
+Next.js App Router source for the cinematic homepage, authenticated applicant
+dashboard, institutional workbench and application detail page. Tailwind CSS,
+shadcn-style Radix Button/Card/Badge components and Framer Motion reveals form
+the shared design system. The navigation uses next/image and the original
+logo asset alone, without additional brand text.
+
+Homepage
+Full-viewport skyline hero, cross-border problem narrative, interactive universal
+ingestion, conditional vault illustration, and planned livability connections.
+The vault illustration runs entirely in local React state. Its 3.5% annualized
+example writes nothing to the ledger and is not an offer or certification.
+
+Applicant
+The RSC dashboard retains the existing authenticated data loader and reads
+the latest extraction payload with the user's Supabase token. Added five-step
+settlement timeline, recorded escrow/state/coverage cards, read-only JSON viewer,
+tranche plan, and dependent readiness. Dependents are explicitly Not captured;
+no family, tenancy, school or settlement date is fabricated. The existing private
+upload/scan/extract flow and operator actions retain their original API wiring.
+
+Operator
+Organization-scoped application query, searchable/filterable/sortable/paginated
+exception table, case detail, stored audit events, and accessible SHA-256 approval
+receipt hashes. The overview displays up to 50 events from six recent cases;
+each detail page provides its existing per-application audit read. Stored hashes
+are hashes of simulator callback bytes, not a cryptographic chain of audit events.
+TVL and throughput charts are explicitly illustrative sample telemetry.
+
+Universal routing boundary
+The unchanged extractor supports venture_builder, healthcare_specialist,
+educator and corporate_talent. The unchanged pure routing switch previews
+Hub71/DOH/ADEK only above 98%, with no missing fields or human-review flag.
+Corporate talent remains unassigned and requires institutional review because
+no corporate destination was established. Persisted validation remains the
+approved healthcare pilot. Universal extraction does not grant authority to
+advance a non-healthcare application in the locked database workflow.
+
+Preservation
+SHA-256 comparison against the pre-overhaul snapshot confirms every SQL file,
+middleware.ts, API route and pre-existing lib file is byte-identical. No ledger,
+RLS, authorization, idempotency, extraction or routing implementation changed.
+Only frontend pages/components/styles, dependency/design configuration and
+frontend asset packaging changed. Docker now includes public assets and the
+pnpm override configuration required for the selected Motion dependency versions.
+Docker image execution has not been tested in this environment.
+
+Validation
+108 existing tests passed across nine test files. Next.js production compilation,
+type validation and page generation passed. Headless Edge checked desktop and
+390px mobile visual demo views, all four persona selections, the exact-98 review
+boundary, separate approval/provider confirmation, queue filtering/pagination,
+audit search, browser errors and horizontal overflow. Screenshots were reviewed.
+Live login, uploads, government callbacks and database reads were not exercised:
+this environment has no configured Supabase credentials or running provider.
+
+Portable visual preview
+../falcon-ui-preview/index.html opens offline. Its Portal view uses the actual
+homepage components; Applicant/Operator use actual shared components with sample
+fixtures. A visible demo switch selects all three views. next/image, next/link
+and navigation have preview-only browser adapters, outside production source.
+Uploads and mutations are disabled in this preview. It is a visual demonstration,
+not a deployment or an authenticated backend session.
+
+Assets
+public/falcon-protocol-logo.jpeg: original user-provided logo, unchanged.
+public/falcon-skyline.png: generated using the built-in image_gen imagegen tool.
+Prompt summary: cinematic 16:9 Abu Dhabi-inspired waterfront at blue hour;
+deep navy sky, gold-lit skyline and luminous gold/ice data trails over water;
+quiet upper negative space; no text, logos, UI or people. Artistic illustration.
+Generated source: C:/Users/Abdul Razak Bello/.codex/generated_images/
+01a0fb2f-5d30-73f1-b4a8-11f999c201cd/
+exec-a3da2334-288f-4361-acfa-2c0337d20ab7.png
+
+Build
+Install from the project root with pnpm install --frozen-lockfile, then pnpm build.
+Retain pnpm-workspace.yaml: motion-dom/motion-utils overrides prevent incompatible
+transitive resolutions. Runtime configuration remains documented in README.txt
+and PHASE3.txt. No service credentials are bundled into this delivery.

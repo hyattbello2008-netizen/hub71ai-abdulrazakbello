@@ -1,0 +1,34 @@
+Validation date: 2026-10-02
+
+PASS: TypeScript strict typecheck, noUncheckedIndexedAccess, exactOptionalPropertyTypes.
+PASS: 90 Vitest tests in eight suites. Phase 3 adds source evidence/citations/conflicts,
+  bigint-safe formatting, same-origin mutation checks, strict request schemas, scanner
+  fail-closed behaviour, middleware Auth and database roles, refresh-cookie forwarding,
+  operator API authorization, ingestion happy path, review gating and duplicate claims.
+  Auth, Storage, scanner and AI calls in these tests are mocked.
+PASS: Next.js 14.2.35 optimized Windows production build. Dashboard and workbench are
+  dynamic server-rendered pages; API mutations and document handling use Node.js.
+  Build used an explicitly fake public anonymous key, no service/AI key. Rebuild with
+  your actual public gateway/anonymous key at deployment; build output is not archived.
+PASS: Phase 1, Phase 2 and Phase 3 SQL migrations and rollback assertions executed in
+  PGlite PostgreSQL 18.3 with minimal Auth and Storage schemas. Verified owner-isolated
+  reads, caller-bound operator lookup, secret lease non-disclosure, stale/duplicate
+  ingestion protection, source-cited exception creation, reviewer denial, approver
+  override/routing and balances changing only after simulated payment confirmation.
+PASS: Copies of original foundation and verification SQL are byte-identical to Phase 1.
+
+NOT VERIFIED
+- Actual browser rendering and production HTTP smoke checks for Phase 3: the temporary
+  localhost server launch was rejected by automatic approval review because a required
+  sandbox approval is unavailable under this session's policy. No smoke-check success
+  is claimed. Phase 2's historical HTTP results remain in VALIDATION.txt.
+- Actual self-hosted Supabase JWT, email confirmation, Storage gateway and PostgREST.
+- Actual security scanner, PDF OCR, provider inference or live applicant records.
+- Linux Docker build/deployment, production proxy settings or UAE processing residency.
+- Concurrent database-session races/deadlocks; PGlite checks are single-session.
+
+Deployment acceptance: use two applicant accounts and scoped reviewer/approver accounts.
+Confirm cross-user files/cases are denied, reviewer mutations are denied, incomplete
+evidence is queued, successful source-cited evidence reaches READY, operator routing
+does not approve a government milestone, and repeated funding confirmation creates
+only one balanced journal. Verify email confirmation, sign-out and refresh cookies.

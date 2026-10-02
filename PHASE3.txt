@@ -1,0 +1,125 @@
+FALCON PROTOCOL — PHASE 3 AUTHENTICATED FRONTEND
+
+This source replaces the earlier synthetic preview with database-backed pages.
+No applicant, account balance, application, operator permission, or approval is
+invented in the UI. New users see a zero balance and Upload Credentials guidance.
+The only fixed financial value is an explicitly simulated AED 50,000 tranche plan.
+It is not a balance: funding confirmation must post the ledger before a balance appears.
+
+ENTRY POINTS
+middleware.ts                        Session refresh, verified Auth user and DB roles.
+lib/supabase/{browser,server}.ts      SSR anonymous-key clients with user cookies/RLS.
+lib/auth/server.ts                   Independent authorization on every mutation.
+app/dashboard/page.tsx               RSC own-user profile/case/balance/tranche reads.
+app/workbench/page.tsx               Scoped institutional case queue.
+app/workbench/[id]/page.tsx          Evidence, citations, audit and role-scoped actions.
+components/UploadCredentials.tsx     Private Storage upload + ingestion + DB progress.
+app/api/applications/route.ts        Create the authenticated applicant's pilot case.
+app/api/ingestion/uploads/route.ts   Authorize a unique, expiring private object path.
+app/api/ingestion/route.ts           Scan/hash/parse/extract/validate/atomic SQL commit.
+app/api/ingestion/[id]/route.ts      Owner-only committed job progress.
+app/api/workbench/[id]/approve       Scoped, reasoned override and simulator routing.
+app/api/workbench/[id]/simulate-lock Signed server callback; never a client-side key.
+sql/005_frontend_authority.sql       Additive frontend authority; ledger unchanged.
+sql/006_frontend_verification.sql    Rollback-only checks on disposable database.
+
+INSTALLATION
+1. Self-host the official Supabase Docker stack in your approved UAE environment.
+   This project does not install or replace that stack. Auth and Storage must exist.
+2. Fresh database: apply sql/001_foundation.sql as trusted migration owner; optionally
+   run 002_verification.sql before extensions. Then apply 003_approval_authority.sql
+   and 005_frontend_authority.sql. Existing Phase 2 database: apply ONLY 005.
+   Checks 004 and 006 are rollback-only and belong in a disposable test database.
+3. Provision an organization as migration owner, set PILOT_ORGANIZATION_ID to its UUID.
+   Register staff through Auth, then provision organization_memberships with their
+   auth.users.id and reviewer/approver/administrator role using trusted administration.
+   Signup metadata never grants operator authority. Deactivate membership to revoke it.
+4. Copy .env.example to .env.local and configure the public gateway URL/ANON key,
+   internal SUPABASE_URL/service key, APP_ORIGIN, organization, scanner adapter, AI
+   provider and optional funding simulator. Keep secret values server-side only.
+   NEXT_PUBLIC_* are public and must be present at build time; rebuild after changing.
+5. Configure Supabase Auth Site URL to APP_ORIGIN and permit APP_ORIGIN/auth/callback
+   in redirect URLs. Enable email confirmation and use an actual mail transport.
+6. pnpm install --frozen-lockfile; pnpm test; pnpm typecheck; pnpm build; pnpm start.
+   Set browser uploads to the browser-accessible Supabase gateway, not Docker's kong DNS.
+   APP_ORIGIN must match the HTTPS browser Origin, with no pathname.
+7. Dockerfile provides a Node.js 22 standalone application container (Linux build).
+   Supply only NEXT_PUBLIC_SUPABASE_URL and NEXT_PUBLIC_SUPABASE_ANON_KEY as build args.
+   Inject server secrets at runtime. Deploy behind TLS alongside Supabase; configure
+   reverse-proxy upload limits and ingestion timeout >=180s. No Vercel dependency.
+   Middleware's Next.js runtime runs locally with this server. PII parsing, AI and
+   mutations explicitly use Node.js. An external OpenAI API is a separate data path;
+   self-hosting Next.js does not establish OpenAI processing residency.
+
+INGESTION CONTRACT
+POST /api/applications {}
+POST /api/ingestion/uploads
+  {application_id,document_type,mime_type,size_bytes}
+returns {upload_id,object_key,bucket}. Upload using the applicant JWT, upsert:false.
+POST /api/ingestion {upload_id}; no document text, actor, object path, score or role
+is accepted from the browser. Server downloads the authorized stored object itself.
+GET /api/ingestion/<upload_id> returns status/stage, without secret lease tokens.
+Cookie mutations require an exact same-origin Origin and strict JSON schemas.
+
+Private bucket: healthcare-evidence; PDF/text only; maximum 5 MiB. A server-issued
+intent permits only its applicant and exact path to insert. No overwrite/delete policy.
+Review existing permissive Storage policies, which PostgreSQL combines using OR.
+Upload intents expire after 30 minutes and are limited to 12 per case per hour.
+The backend takes a five-minute, fenced, per-case ingestion lease. Duplicates cannot
+reprocess a DONE intent. It parses at most eight documents and 128 KiB combined text.
+Expired jobs can be retried while their upload intent is still valid. Otherwise start
+a new upload; preserve unprocessed objects for your institution's retention process.
+
+SCANNER CONTRACT
+DOCUMENT_SCAN_URL is a private adapter endpoint, DOCUMENT_SCAN_TOKEN its Bearer secret.
+POST actual document bytes with Content-Type application/pdf or text/plain.
+Return application/json: {"status":"clean","sha256":"<lowercase SHA256 of exact bytes>"}.
+The configured scanner must actually perform malware checks (e.g. your ClamAV adapter).
+Missing/unavailable scanner fails closed; mismatched hashes cannot enter extraction.
+No scanner service is included. Scanned PDFs needing OCR are queued as OCR_REQUIRED;
+this pilot has no OCR service. Failures become an operator-visible exception.
+
+SOURCE VALIDATION BOUNDARY
+This MVP uses a documented pilot label format, NOT a validated official DOH schema:
+  Full Name: <name>
+  Passport Number: <number>
+  Qualification: <qualification>
+  Issuing Authority: <authority>
+  Registration Number: <number>
+  Experience Dates: <dates>
+  Profession: <healthcare profession>
+The labels must appear on separate lines in text-readable documents. Multiple files
+are combined. Each source match retains its actual document ID, page and exact line.
+Conflicting values remove the field and flag review. Healthcare classification is
+derived from the Profession field. This measures evidence coverage, not authenticity,
+license validity, identity verification or government eligibility. Unstructured text
+that lacks these labels remains available for human review and is not auto-approved.
+
+OpenAI strict extraction uses the existing backend-generated protocol UUID. Its score
+is stored separately as untrusted. Readiness uses the LOWER of source coverage and AI
+score; any AI review signal caps it at 98. At exactly 98 or below, or on conflicts or
+unsupported profession, the case enters EXCEPTION. Only >98 with supported healthcare
+evidence reaches READY. READY still needs an operator action before simulated routing.
+Exception Queue is a filtered projection of applications, not a second inconsistent
+mutable queue table. Failed ingestion records show their reason in this queue.
+
+OPERATOR CONTRACT
+Approver/administrator roles may POST /api/workbench/<id>/approve {reason}, 10–2000
+characters. The actor comes only from Auth; SQL rechecks organization membership.
+Reviewers can inspect cases and evidence but cannot approve or fund.
+Approval here is a case-review override + routing to doh_simulator. It does NOT set
+simulated government approval, authorize a RELEASE, or execute a payment.
+
+POST /api/workbench/<id>/simulate-lock {} is separately enabled with
+SIMULATION_ACTIONS_ENABLED=true, SIMULATOR_CALLBACK_ORIGIN and PAYMENT_SIM_ACTIVE_KEY_ID.
+The backend prepares a payment operation, signs a stable confirmation event using the
+payment keyring, and POSTs to the existing /api/webhooks/payment-sim. UI success requires
+a CONFIRMED operation. Network errors permit safe retries of the same operation/event.
+Callback destination is fixed server configuration, never a browser-supplied URL.
+All custody, government callbacks, tranches and settlement remain simulated.
+
+VALIDATION LIMITS
+Automated Auth/provider tests use mocks; SQL uses PostgreSQL-compatible PGlite with
+minimal Auth/Storage schemas. No live Supabase stack, scanner, email, OpenAI call,
+Docker build or UAE deployment was available. Perform deployment acceptance tests
+with two applicants, scoped staff and your actual Supabase JWT/cookie/storage setup.

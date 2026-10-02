@@ -1,0 +1,62 @@
+UNIVERSAL UI & EXTRACTION UPDATE — 2026-10-02
+
+UPDATED PRODUCT FILES
+app/layout.tsx                      Supplied image-only header, universal metadata.
+app/page.tsx                        Venture, clinical, educator and corporate copy.
+components/AuthForm.tsx             Universal sign-in copy; Auth logic unchanged.
+components/RoutingPreview.tsx       Four sample personas and >98 threshold exploration.
+components/UploadCredentials.tsx    Universal upload copy and returned routing preview.
+lib/ai/extractor.ts                 Strict universal enums and persona-specific checklists.
+lib/ai/routing.ts                   Pure deterministic switch; no HTTP/SQL/payments.
+app/api/ingestion/route.ts          Switch wiring, preview metadata and SQL compatibility.
+public/falcon-protocol-logo.jpeg    Exact attached JPEG, unchanged pixels.
+
+ROUTING
+venture_builder -> Hub71 API (Simulated), hub71_simulator.
+healthcare_specialist -> DOH API (Simulated), doh_simulator.
+educator -> ADEK API (Simulated), adek_simulator.
+corporate_talent -> institutional review; no government destination was specified.
+unknown -> human review. Unknown is an additional safety fallback, not a new pathway.
+Only scores strictly >98 with no missing fields/review flag yield a routing preview.
+No real endpoint URL, government request, approval or financial posting is generated.
+
+EXTRACTION
+The strict JSON response retains protocol_id, persona_class,
+evidence_completeness_index and missing_fields. Protocol ID still comes from backend.
+Healthcare persona enum changes from healthcare to healthcare_specialist. Consumers
+must use the new enum; existing persisted source validation keeps its healthcare alias.
+Founder pitch decks, clinical registrations, teaching certificates and corporate
+employment evidence identify a persona from document content. Ambiguous evidence
+is unknown. Each persona has its own required-field checklist, so a pitch deck does
+not require a medical registration. Full compliance or classification accuracy is
+not established by valid JSON or document type. Missing facts remain missing.
+No actual OpenAI requests were made during validation; provider tests use mocks.
+Official schema reference: https://developers.openai.com/api/docs/guides/structured-outputs
+
+LOCKED DATABASE COMPATIBILITY
+All SQL files, middleware.ts and existing webhook/idempotency code remain unchanged.
+The SQL application pathway and persisted destination still permit only healthcare
+and doh_simulator. Hub71/ADEK results are therefore explicitly previews, stored under
+simulated_routing in the existing extracted_data JSON and returned by ingestion.
+Non-healthcare cases remain EXCEPTION for institutional review. They are never
+relabeled as healthcare to bypass SQL authority, nor auto-routed by the model's score.
+Healthcare source validation remains authoritative for persisted readiness and maps
+healthcare_specialist to the existing healthcare value when independently supported.
+The source validator, ledger, money handling, RLS, scan/lease/duplicate protections,
+operator membership checks and provider confirmation handlers are not rewritten.
+
+FRONTEND
+The header uses Next.js Image with /falcon-protocol-logo.jpeg, original 1280x720 ratio,
+responsive display and no extra brand name/subtitle. The supplied logo remains intact.
+RoutingPreview on the homepage uses explicitly sample extraction values to demonstrate
+all four paths without requiring live credentials or an AI request. It uses the same
+switch as the server. The real upload flow shows its returned extraction preview.
+The older static HTML demo is separate from these React files and was not modified.
+For a standalone Docker release, ensure public/ is included in the runtime image
+(Next standalone does not copy public assets automatically). Dockerfile was left
+unchanged under the requested file-scope constraint.
+
+VALIDATION
+108 automated tests pass. Strict TypeScript passes. Original protected file hashes
+match, and copied logo bytes match the attached JPEG. Next.js production build passes. Rendered header contains only the supplied image
+and navigation links, with no extra brand text; there is no new Sites deployment in this update.
