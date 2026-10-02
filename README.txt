@@ -1,0 +1,214 @@
+FALCON PROTOCOL — PHASE 3 PILOT APPLICATION
+Next.js 14 App Router / TypeScript strict / Supabase SSR Auth / private Storage.
+Healthcare professional → DOH simulator. Simulated Escrow only.
+
+START HERE: PHASE3.txt describes installation, configuration and integration limits.
+PHASE3-VALIDATION.txt records the current checks; PHASE2.txt preserves earlier contracts.
+
+Implemented: public homepage and Auth screens; applicant/operator middleware; RSC
+dashboard data through user JWT and RLS; private credential uploads; scanned/hash-checked
+ingestion with source citations; institutional queue, audit history and scoped actions;
+signed, separately confirmed simulated funding; additive SQL and a Node.js Dockerfile.
+
+Existing Phase 2 database: apply sql/005_frontend_authority.sql as migration owner.
+Configure .env.local from .env.example, your pilot organization and staff memberships,
+Auth email redirects, private scanner adapter and extraction provider before use.
+Then pnpm install --frozen-lockfile; pnpm test; pnpm typecheck; pnpm build; pnpm start.
+
+No live Supabase, scanner, email or OpenAI credentials were supplied. This release is
+generated source, not a deployed government integration. All financial values are
+simulated. Read PHASE3.txt for the source-validation and self-hosting boundaries.
+
+The remainder documents the retained Phase 2 backend contracts:
+
+ENTRY POINTS
+lib/supabase/serviceRole.ts
+  Server-only service-role client. No user session, cookies, browser credential or
+  anonymous fallback. Session persistence, refresh and URL session detection disabled.
+lib/ai/extractor.ts
+  extractB2GPayload(documentText) or extractB2GPayload(documentText, existingProtocolId).
+app/api/webhooks/payment-sim/route.ts
+  POST /api/webhooks/payment-sim
+app/api/webhooks/tamm-approval-sim/route.ts
+  POST /api/webhooks/tamm-approval-sim
+
+SUPPORTING FILES
+lib/http/errors.ts                 Sanitized errors and environment lookup.
+lib/webhooks/verify.ts             Bounded raw-body reads and origin/forwarder HMAC.
+lib/webhooks/schemas.ts            Strict callback validation, bigint-safe money.
+lib/webhooks/database.ts           Receipt checks and atomic RPC adapters.
+lib/supabase/database.types.ts     Explicit RPC/read contract; money as strings.
+sql/003_approval_authority.sql     Approved additive Phase 2 migration.
+sql/004_approval_verification.sql   Rollback-based SQL assertions.
+tests/                            Mocked provider, signature, route and adapter tests.
+examples/                         Synthetic JSON body examples; replace fixture IDs.
+
+SETUP
+Use Node.js 22+ and the bundled dependency lockfile:
+  pnpm install --frozen-lockfile
+  pnpm typecheck
+  pnpm test
+  pnpm build
+  pnpm start
+Copy .env.example to .env.local and populate server-side secrets; never commit .env.local.
+All lib modules handling secrets/data have import 'server-only'. Both API routes force
+runtime='nodejs'. Deploy Next.js alongside the UAE self-hosted Supabase stack.
+Linux builds use standalone output. Windows builds use normal next start output to
+avoid requiring Windows symlink privileges. Linux standalone packaging was not run here.
+
+DATABASE INSTALLATION
+001_foundation.sql is unchanged. Apply it first if the target is fresh.
+The original 002_verification.sql checks Phase 1 behaviour before the Phase 2 extension.
+Then apply sql/003_approval_authority.sql as the original migration owner.
+Run sql/004_approval_verification.sql on a disposable Supabase database.
+Keep private excluded from PostgREST exposed schemas.
+
+The extension adds immutable government_approval_receipts and the separate application
+projection simulated_approval_status ('PENDING'/'APPROVED'). Approval requires an already
+ROUTED doh_simulator application. It leaves application.status='ROUTED' and changes
+only the approval projection, version, receipt, audit event and transactional outbox.
+It does not call the payment RPC. A trigger additionally requires this approval before
+any new RELEASE operation can be requested through the existing tranche RPC.
+The original ledger tables, immutability rules and financial commands are not rewritten.
+
+PAYMENT CONTRACT
+The JSON body has these required fields, and no additional fields:
+  transaction_id: unique provider EVENT ID (not the operation UUID)
+  application_id: backend application UUID
+  operation_id: pre-existing backend REQUESTED payment operation UUID
+  occurred_at: ISO timestamp with timezone
+  environment: "simulation"
+  provider: "falcon_simulator"
+  event_type: "payment.confirmed"
+  kind: "FUND", "RELEASE" or "REFUND"
+  currency: "AED", "USD", "EUR" or "GBP"
+  amount_minor: positive canonical integer STRING, maximum 9223372036854775807
+
+FUND simulates a confirmed fund lock. It debits SIMULATED_CUSTODY (asset) and credits
+APPLICANT_ESCROW (liability), preserving the agreed Phase 1 accounting model.
+An application/operation mismatch is rejected. SQL compares amount exactly to the
+requested operation. No callback can create an arbitrary new funding intention.
+RELEASE and REFUND confirm separately authorized operations; they are not initiated
+by the approval callback. They debit escrow liability and credit custody asset.
+
+The handler calls confirm_simulated_payment ONCE. Do not replace that call with
+separate journal/posting REST inserts: they would not share a database transaction,
+and Phase 1 deliberately revokes the service role's direct write privileges.
+Receipt + journal + postings + terminal state + audit/outbox commit together in SQL.
+
+APPROVAL CONTRACT
+Required JSON fields, no extras:
+  transaction_id: unique approval provider event ID
+  application_id: backend application UUID
+  occurred_at: ISO timestamp with timezone
+  environment: "simulation"
+  provider: "doh_simulator"
+  event_type: "application.approval.confirmed"
+  approval_status: "APPROVED"
+The route name is tamm-approval-sim for requested compatibility. Its issuer is solely
+the DOH simulator; no real TAMM, DOH or ICP webhook is accepted or represented.
+
+DIRECT SIGNATURE CONTRACT
+Set Content-Type: application/json and these headers:
+  X-Falcon-Key-Id: a configured provider key ID
+  X-Falcon-Timestamp: current Unix timestamp in seconds, as a decimal string
+  X-Falcon-Signature: sha256=<lowercase hex HMAC digest>
+
+HMAC input = UTF-8 timestamp + '.' + EXACT raw body bytes.
+Algorithm = HMAC-SHA256. Compare via timingSafeEqual.
+PAYMENT_SIM_SIGNING_KEYS_JSON maps key IDs to payment-provider secrets.
+APPROVAL_SIM_SIGNING_KEYS_JSON maps key IDs to separate approval-provider secrets.
+Each secret must be at least 32 UTF-8 bytes; use cryptographically random values.
+Never grant approval signing keys to a payment simulator or vice versa.
+Do not log signatures or secrets. Use TLS and reverse-proxy request limits/timeouts.
+Accepted signature clock window: +/- 300 seconds. occurred_at must not be more than
+30 seconds after its authenticated signing timestamp. A genuine older event may be
+retried with a fresh signature over the SAME original event body.
+Raw origin body limit: 64 KiB. Overall forwarding/request body limit: 128 KiB.
+
+MAKE FORWARDING CONTRACT
+Make does not receive the Supabase service key OR origin provider signing keys.
+Set MAKE_FORWARDING_ENABLED=true and give Make only its transport signing secret.
+Set X-Falcon-Forwarder: make and forward this JSON envelope:
+  {
+    "body_base64": "<canonical base64 of exact origin bytes>",
+    "origin": {
+      "key_id": "<provider key ID>",
+      "timestamp": "<origin timestamp>",
+      "signature": "sha256=<origin digest>"
+    }
+  }
+Sign the exact envelope bytes using a distinct transport secret and the same HMAC
+construction. Supply X-Falcon-Forwarder-Key-Id, X-Falcon-Forwarder-Timestamp and
+X-Falcon-Forwarder-Signature. Both signatures must verify. Never rebuild the original
+body from parsed fields; a change in whitespace/key ordering changes its signature.
+Make must preserve original signing timestamps. Re-signing origin events requires
+the origin provider, not Make, to issue the fresh origin signature.
+
+IDEMPOTENCY
+transaction_id is persisted as event_id in the appropriate immutable receipt table.
+Preflight receipt reads classify duplicate versus changed-body conflicts. They are
+not locks. Unique constraints and SQL application locks enforce concurrency safety.
+An exact duplicate returns 409 DUPLICATE_EVENT. Reuse with different bytes/case returns
+409 EVENT_ID_REUSED. A new event ID for an already confirmed operation/approved case
+also returns 409. Expected replay conflicts are not financial failures.
+Make should stop retries for identified duplicates, and raise changed-body conflicts
+for investigation. Do not blindly retry all 4xx or interpret every 409 as a duplicate.
+Database work rolls back on failure, including its receipt, permitting genuine retries.
+
+HTTP RESPONSES
+200: committed simulated payment/approval.
+400: malformed JSON, incorrect schema, invalid money/reference or event time.
+401: missing, expired, forged or unauthorized forwarding/origin signature.
+409: duplicate event, reused ID, already completed operation/approval or invalid state.
+413: body exceeds limits.
+500: missing server configuration, database failure or unexpected internal error.
+Responses/logs exclude callback bodies, raw SDK errors, database host details and secrets.
+GET/other methods receive Next.js's normal method-not-allowed response.
+
+EXTRACTOR CONTRACT
+The OpenAI request uses Chat Completions response_format:
+  {type:"json_schema",json_schema:{name:"falcon_healthcare_evidence",strict:true,schema:...}}
+The MODEL'S output has exactly four fields:
+  protocol_id, persona_class, evidence_completeness_index, missing_fields.
+All fields are required; additionalProperties=false. The protocol ID is generated by
+the backend (or supplied from an existing application), pinned with a single-value
+enum, and rechecked on return. The model never generates authoritative identity.
+
+The utility enriches the validated output with requires_human_review and
+score_authority='untrusted_llm'. Score <98 always requires review. Exactly 98 also
+requires review to preserve Phase 1's strictly >98 gate. Non-healthcare or missing
+fields require review even if the model claims 100. Duplicate/unknown missing field
+names, invalid scores, mismatched IDs, malformed output, refusal and truncation fail.
+Refusal/provider/invalid-output errors use status 502 through HttpError; disabled
+external extraction uses 503. No extraction API route was added in this phase.
+
+The four-field schema is READINESS METADATA, not the complete cited credential record.
+It cannot be passed directly to record_pilot_extraction as a trusted score or full
+extracted_data. A later document/citation validator must produce cited facts, calculate
+the validated completeness score, and map persona_class to extracted_data.persona.
+requires_human_review=false only means this heuristic did not flag review; it is not
+approval or permission to route/settle. This utility makes NO database writes.
+
+Structured Outputs guarantees supported schema shape for a completed, non-refused
+response; it does not prove factual accuracy or repeatability. The system prompt treats
+documentText as untrusted data and rejects conversational filler, routing and decisions.
+The request uses store:false, bounded input/output, 30-second timeout and no automatic
+SDK retries. No temperature setting assumes universal model support.
+
+OPENAI_EXTRACTION_ENABLED defaults off. Set an account-supported structured-output
+model and API key only after the chosen inference/data-transfer controls are agreed.
+Local Next.js execution does not make a request to OpenAI remain within the UAE.
+No live OpenAI request or real healthcare record was used during development tests.
+
+VERIFICATION
+See VALIDATION.txt for executed checks and deployment limitations.
+External services are mocked in TypeScript tests. SQL assertions execute the actual
+schema/functions in a temporary PostgreSQL WASM engine with Supabase role/auth stubs.
+End-to-end PostgREST authentication, independent-session races, Linux container build,
+actual OpenAI inference and actual Make forwarding remain deployment integration checks.
+
+PRIMARY REFERENCES
+https://developers.openai.com/api/docs/guides/structured-outputs
+https://nextjs.org/docs/14/app/building-your-application/routing/route-handlers
+https://supabase.com/docs/guides/database/postgres/row-level-security
