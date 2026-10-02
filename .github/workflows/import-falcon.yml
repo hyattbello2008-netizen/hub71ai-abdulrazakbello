@@ -1,0 +1,51 @@
+name: Import verified Falcon source once
+on:
+  workflow_dispatch:
+permissions:
+  contents: write
+concurrency:
+  group: falcon-source-import
+  cancel-in-progress: false
+jobs:
+  import:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - name: Verify archives and restore the complete file tree
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path, PurePosixPath
+          from zipfile import ZipFile
+          import hashlib, json
+          packages = [
+              ('falcon-portal-ui-overhaul.zip', 'falcon-portal', Path('.'), '975ff38eb90331a0283f5f7e60cc4b284b805c97e304324c09a97ab843ee6d45'),
+              ('falcon-portal-visual-demo.zip', 'falcon-ui-preview', Path('dist'), '7539b582692e63dd52617737f5205ddd0619fca41ec9a35c0ef09b209a8c68f2'),
+          ]
+          for filename, prefix, destination, expected in packages:
+              archive = Path(filename)
+              assert hashlib.sha256(archive.read_bytes()).hexdigest() == expected, 'Archive checksum mismatch'
+              with ZipFile(archive) as source:
+                  for member in source.infolist():
+                      relative = PurePosixPath(member.filename).relative_to(prefix)
+                      assert '..' not in relative.parts and not relative.is_absolute(), 'Unsafe archive path'
+                      assert '.git' not in relative.parts, 'Git metadata is not an import target'
+                      if member.is_dir():
+                          continue
+                      target = destination.joinpath(*relative.parts)
+                      target.parent.mkdir(parents=True, exist_ok=True)
+                      target.write_bytes(source.read(member))
+          Path('.openai').mkdir(exist_ok=True)
+          Path('.openai/hosting.json').write_text(json.dumps({'project_id': 'appgprj_6abf73a6858081919ed0285224d900dc', 'static': {'directory': 'dist'}}, indent=2) + '\n')
+          for filename, _, _, _ in packages:
+              Path(filename).unlink()
+          Path('.github/workflows/import-falcon.yml').unlink(missing_ok=True)
+          print('Verified and imported Next.js source and static demo; one-time importer removed.')
+          PY
+      - name: Commit the restored source to main
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add --all
+          git commit -m "Import validated Falcon Protocol source and portal demo"
+          git push origin HEAD:main
